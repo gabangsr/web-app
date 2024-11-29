@@ -6,12 +6,8 @@ app.get('/',(req, res) => (
     res.send('Hello World')
 ));
 
-app.get('/',(req, res) => (
+app.get('/show',(req, res) => (
     res.send('Do you know that this is real?')
-));
-
-app.get('/',(req, res) => (
-    res.send('Not sure on how this feels?')
 ));
 
 app.listen(port, () => {
