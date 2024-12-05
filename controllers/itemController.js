@@ -1,130 +1,95 @@
-const itemsModel = require('../models/itemModels');
-
-function formatDate(date) {
-    const d = new Date(date);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
-
-exports.getAllItems = (req, res) => {
-    itemsModel.getAllItems((err, rows) => {
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./database.db');
+const getAllItems = (req, res) => {
+    db.all('SELECT * FROM items', [], (err, rows) => {
         if (err) {
             console.error('Error fetching items:', err);
-            return res.status(500).json({ error: 'Failed to fetch items' });
+            return res.status(500).send('Internal Server Error');
         }
-
-        const formattedRows = rows.map(item => ({
-            ...item,
-            date_created: formatDate(item.date_created)
-        }));
-
-        res.json(formattedRows);
+        res.status(200).json(rows);
     });
 };
 
-exports.createItem = (req, res) => {
-    const { name, description } = req.body;
-    const date_created = formatDate(new Date());
-
+const createItem = (req, res) => {
+    const { name, description, date_created } = req.body;
     if (!name) {
-        return res.status(400).json({ error: 'Item name is required' });
+        return res.status(400).send('Name is required');
     }
 
-    itemsModel.createItem(name, description || null, date_created, (err, itemId) => {
+    const stmt = db.prepare('INSERT INTO items (name, description, date_created) VALUES (?, ?, ?)');
+    stmt.run(name, description, date_created, function(err) {
         if (err) {
             console.error('Error adding item:', err);
-            return res.status(500).json({ error: 'Failed to add item' });
+            return res.status(500).send('Internal Server Error');
         }
-
-        itemsModel.getAllItems((err, rows) => {
-            if (err) return;
-
-            if (rows.length === 1) {
-                itemsModel.resetAutoIncrement(() => {
-                    console.log('AUTOINCREMENT reset');
-                });
-            }
-        });
-
-        res.status(201).json({
-            id: itemId,
-            name,
-            description: description || null,
-            date_created,
-        });
+        res.status(201).json({ id: this.lastID, name, description, date_created });
     });
 };
 
-exports.updateItem = (req, res) => {
+const updateItem = (req, res) => {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    if (!name) {
-        return res.status(400).json({ error: 'Item name is required' });
-    }
-
-    itemsModel.updateItem(id, name, description || null, (err, changes) => {
+    const stmt = db.prepare('UPDATE items SET name = ?, description = ? WHERE id = ?');
+    stmt.run(name, description, id, function(err) {
         if (err) {
             console.error('Error updating item:', err);
-            return res.status(500).json({ error: 'Failed to update item' });
+            return res.status(500).send('Internal Server Error');
         }
-        if (changes === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-
-        res.status(200).json({ message: 'Item updated successfully' });
+        res.status(200).json({ id, name, description });
     });
 };
 
-exports.partiallyUpdateItem = (req, res) => {
-    const { id } = req.params;
-    const { name, description } = req.body;
-
-    if (!name && !description) {
-        return res.status(400).json({ error: 'At least one field (name or description) is required for partial update' });
-    }
-
-    itemsModel.partiallyUpdateItem(id, name || '', description || '', (err, changes) => {
-        if (err) {
-            console.error('Error partially updating item:', err);
-            return res.status(500).json({ error: 'Failed to partially update item' });
-        }
-        if (changes === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-
-        res.status(200).json({ message: 'Item partially updated successfully' });
-    });
-};
-
-exports.deleteItem = (req, res) => {
-    const { id } = req.params;
-
-    itemsModel.deleteItem(id, (err, changes) => {
-        if (err) {
-            console.error('Error deleting item:', err);
-            return res.status(500).json({ error: 'Failed to delete item' });
-        }
-        if (changes === 0) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-
-        itemsModel.getAllItems((err, rows) => {
-            if (err) return;
-
-            if (rows.length === 0) {
-                itemsModel.resetAutoIncrement(() => {
-                    console.log('AUTOINCREMENT counter reset');
-                });
+const deleteItem = (req, res) => {
+    try {
+        const { id } = req.params;
+        db.get('SELECT * FROM items WHERE id = ?', [id], (err, row) => {
+            if (err) {
+                console.error('Error checking item existence:', err);
+                return res.status(500).send('Internal Server Error');
             }
-        });
 
-        res.status(200).json({ message: 'Item deleted successfully' });
-    });
+            if (!row) {
+                return res.status(404).send('Item not found');
+            }
+
+            db.run('DELETE FROM items WHERE id = ?', [id], (err) => {
+                if (err) {
+                    console.error('Error deleting item:', err);
+                    return res.status(500).send('Internal Server Error');
+                }
+
+                db.get('SELECT COUNT(*) AS count FROM items', (err, row) => {
+                    if (err) {
+                        console.error('Error checking item count:', err);
+                        return res.status(500).send('Internal Server Error');
+                    }
+
+                    if (row.count === 0) {
+                        db.run("DELETE FROM sqlite_sequence WHERE name = 'items';", (err) => {
+                            if (err) {
+                                console.error('Error resetting auto-increment counter:', err);
+                                return res.status(500).send('Internal Server Error');
+                            }
+
+                            console.log('Auto-increment reset successfully');
+                        });
+                    }
+
+                    res.status(200).send('Item deleted');
+                });
+            });
+        });
+    } catch (error) {
+        console.error('Error deleting item:', error);
+        res.status(500).send('Internal Server Error');
+    }
+};
+
+
+module.exports = {
+    getAllItems,
+    createItem,
+    updateItem,
+    deleteItem,
 };

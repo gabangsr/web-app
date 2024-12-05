@@ -1,43 +1,95 @@
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./database.db');
+const ItemModel = (() => {
+    const fetchItems = async () => {
+        try {
+            const response = await fetch('/api/items');
+            if (!response.ok) {
+                throw new Error('Failed to fetch items');
+            }
+            const items = await response.json();
+            displayItems(items);
+        } catch (error) {
+            console.error('Error fetching items:', error);
+        }
+    };
 
-module.exports = {
-    getAllItems: (callback) => {
-        db.all('SELECT * FROM items', [], callback);
-    },
+    const formatDate = (dateString) => {
+        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', options);
+    };
 
-    getItemById: (id, callback) => {
-        db.get('SELECT * FROM items WHERE id = ?', [id], callback);
-    },
+    const displayItems = (items) => {
+        const itemsList = document.getElementById('items-list');
+        itemsList.innerHTML = items.map(item => `
+            <tr class="border-t">
+                <td class="py-2 px-4">${item.id}</td>
+                <td class="py-2 px-4">${item.name}</td>
+                <td class="py-2 px-4">${item.description || 'No description'}</td>
+                <td class="py-2 px-4">${formatDate(item.date_created)}</td>
+                <td class="py-2 px-4">
+                    <button class="edit-button px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 mr-2" onclick="editItem(${item.id}, '${item.name}', '${item.description || ''}')">Edit</button>
+                    <button class="delete-button px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600" onclick="deleteItem(${item.id})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    };
 
-    createItem: (name, description, date_created, callback) => {
-        const query = 'INSERT INTO items (name, description, date_created) VALUES (?, ?, ?)';
-        db.run(query, [name, description, date_created], function (err) {
-            callback(err, this.lastID);
-        });
-    },
+    const addItem = async (name, description) => {
+        const date_created = new Date().toISOString();
+        try {
+            const response = await fetch('/api/items', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, description, date_created }),
+            });
+            if (!response.ok) {
+                throw new Error('Failed to create item');
+            }
+            fetchItems(); 
+        } catch (error) {
+            console.error('Error adding item:', error);
+        }
+    };
 
-    updateItem: (id, name, description, callback) => {
-        const query = 'UPDATE items SET name = ?, description = ? WHERE id = ?';
-        db.run(query, [name, description, id], function (err) {
-            callback(err, this.changes);
-        });
-    },
+    const saveEdit = async (id, name, description) => {
+        try {
+            const response = await fetch(`/api/items/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, description }),
+            });
+            if (!response.ok) {
+                throw new Error('Failed to update item');
+            }
+            fetchItems();
+        } catch (error) {
+            console.error('Error updating item:', error);
+        }
+    };
 
-    partiallyUpdateItem: (id, name, description, callback) => {
-        const query = 'UPDATE items SET name = ?, description = ? WHERE id = ?';
-        db.run(query, [name, description, id], function (err) {
-            callback(err, this.changes);
-        });
-    },
+    const confirmDelete = async (id) => {
+        try {
+            const response = await fetch(`/api/items/${id}`, {
+                method: 'DELETE',
+            });
+            if (!response.ok) {
+                throw new Error('Failed to delete item');
+            }
+            fetchItems();
+        } catch (error) {
+            console.error('Error deleting item:', error);
+        }
+    };
 
-    deleteItem: (id, callback) => {
-        db.run('DELETE FROM items WHERE id = ?', [id], function (err) {
-            callback(err, this.changes);
-        });
-    },
-
-    resetAutoIncrement: (callback) => {
-        db.run("DELETE FROM sqlite_sequence WHERE name='items'", callback);
-    }
-};
+    return {
+        fetchItems,
+        addItem,
+        saveEdit,
+        confirmDelete,
+    };
+})();
+window.ItemModel = ItemModel;
