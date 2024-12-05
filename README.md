@@ -37,5 +37,7 @@ Run the following command to start the server:
 ```bash
 node index.js
 ```
+And press Ctrl + C to end the server
+
 
 You can access the website at `http://localhost:3000`.
