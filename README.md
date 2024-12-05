@@ -1,23 +1,41 @@
-# web-app
-
 # Database Manager Web Application
 
 ## Description
 
-The **Employee Database Manager** is a web application designed to manage a simple list of items. It allows users to perform CRUD (Create, Read, Update, Delete) operations on this database. Users can add new items, edit their details, and delete them if needed.
+The **Employee Database Manager** is a web application for managing a list of employees. It allows users to perform CRUD (Create, Read, Update, Delete) operations: adding, editing, and deleting employee records.
 
 ## How to Run Locally
-Given you want to clone this project for yourself, you can do the following steps:
+
+Follow these steps to run the project locally:
 
 ### 1. Clone the Repository
-First, clone the repository to your local machine using any command prompt, given you have located the directory where you would want to put it:
+
+Navigate to the project directory where you want it to be installed:
+
+```bash
+cd path/to/your/project/web-app
+```
+
+Clone the repository to your local machine using the following syntax:
 
 ```bash
 git clone https://github.com/gabangsr/web-app
 ```
 
-Just in case you do not know how to locate the directory:
+### 2. Install Dependencies
+
+Install the required dependencies, if you do not have Node yet:
 
 ```bash
-cd C:\Users\YourUsername\Documents
+npm install
 ```
+
+### 3. Start the Server
+
+Run the following command to start the server:
+
+```bash
+node index.js
+```
+
+You can access the website at `http://localhost:3000`.
